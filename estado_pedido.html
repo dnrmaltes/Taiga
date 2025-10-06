@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>US-10 · Estado de pedido · Al Sahara</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body{background:#f7f7f5}
+    .card{border-radius:14px}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
+    .step{display:flex;align-items:center;gap:.5rem}
+    .dot{width:.75rem;height:.75rem;border-radius:50%;background:#e5e7eb}
+    .step.done .dot{background:#198754}
+    .step.current .dot{background:#0d6efd}
+    .muted{color:#6b7280}
+  </style>
+</head>
+<body class="bg-light">
+  <nav class="navbar navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="index.html">Al Sahara</a>
+      <div class="d-flex gap-3">
+        <a class="nav-link text-white-50" href="catalogo.html">Catálogo</a>
+        <a class="nav-link text-white-50" href="orden_despacho.html">Orden de despacho</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-4" style="max-width:840px">
+    <h1 class="h4 mb-3">Estado de pedido</h1>
+
+    <div id="msg" class="alert d-none"></div>
+
+    <!-- Buscar tracking -->
+    <form id="form-lookup" class="card shadow-sm mb-3">
+      <div class="card-body">
+        <label class="form-label" for="trk">Ingresa tu código de seguimiento</label>
+        <div class="input-group">
+          <input id="trk" class="form-control mono" placeholder="ALSA-CHX-000123" required />
+          <button class="btn btn-primary">Consultar</button>
+        </div>
+        <div class="form-text">El código fue generado al crear la orden (US-09) y también aparece en tu boleta.</div>
+      </div>
+    </form>
+
+    <!-- Resultado -->
+    <div id="result" class="card shadow-sm d-none">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+          <div>
+            <div class="small text-muted">Tracking</div>
+            <div id="r-trk" class="mono">—</div>
+          </div>
+          <div class="text-end">
+            <div class="small text-muted">Última actualización</div>
+            <div id="r-updated" class="mono">—</div>
+          </div>
+        </div>
+
+        <hr>
+
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <div class="small text-muted">Estado actual</div>
+            <div id="r-status" class="fw-semibold">—</div>
+          </div>
+          <div class="col-12 col-md-6 text-md-end">
+            <div class="small text-muted">Resumen</div>
+            <div id="r-summary" class="muted">—</div>
+          </div>
+        </div>
+
+        <div class="vstack gap-2 my-3" id="steps">
+          <div class="step" data-s="CREATED"><span class="dot"></span><span>Creada</span></div>
+          <div class="step" data-s="WAREHOUSE"><span class="dot"></span><span>En bodega</span></div>
+          <div class="step" data-s="ONROUTE"><span class="dot"></span><span>En ruta</span></div>
+          <div class="step" data-s="DELIVERED"><span class="dot"></span><span>Entregada</span></div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+          <button id="btn-refresh" class="btn btn-outline-secondary">Actualizar estado</button>
+          <a id="btn-print" href="#" class="btn btn-outline-dark">Imprimir comprobante</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    (function(){
+      const $ = (id)=>document.getElementById(id);
+      const msg = $("msg");
+      const STATES = ["CREATED","WAREHOUSE","ONROUTE","DELIVERED"];
+      const STATUS_LABEL = {
+        CREATED:   "Creada",
+        WAREHOUSE: "En bodega",
+        ONROUTE:   "En ruta",
+        DELIVERED: "Entregada"
+      };
+      const STATUS_SUMMARY = {
+        CREATED:   "Tu pedido fue recibido y está en procesamiento.",
+        WAREHOUSE: "Tu pedido se está preparando en bodega.",
+        ONROUTE:   "El pedido salió a reparto con el courier.",
+        DELIVERED: "Pedido entregado en destino."
+      };
+
+      // Helpers
+      function showMsg(type, text){
+        msg.className = "alert alert-" + type;
+        msg.textContent = text;
+        msg.classList.remove("d-none");
+      }
+      function hideMsg(){ msg.classList.add("d-none"); }
+      function nowStr(){ return new Date().toLocaleString(); }
+
+      function loadShipment(){
+        try { return JSON.parse(localStorage.getItem("alsahara.shipment") || "null"); }
+        catch(_){ return null; }
+      }
+
+      function renderSteps(current){
+        document.querySelectorAll(".step").forEach(el=>{
+          const code = el.getAttribute("data-s");
+          el.classList.toggle("done", STATES.indexOf(code) < STATES.indexOf(current));
+          el.classList.toggle("current", code === current);
+        });
+      }
+
+      function renderResult(s){
+        $("r-trk").textContent = s.tracking;
+        $("r-updated").textContent = nowStr();
+        $("r-status").textContent = STATUS_LABEL[s.status] || s.status;
+        $("r-summary").textContent = STATUS_SUMMARY[s.status] || "";
+        renderSteps(s.status);
+        $("result").classList.remove("d-none");
+      }
+
+      // Cargar tracking desde querystring si viene ?t=ALSA-...
+      const qs = new URLSearchParams(location.search);
+      const tFromQuery = qs.get("t");
+      if(tFromQuery){ $("trk").value = tFromQuery; }
+
+      function lookup(tracking){
+        hideMsg();
+        const s = loadShipment();
+        if(!s || !s.tracking){
+          showMsg("warning","No se encontró ninguna orden en este navegador. Genera una en 'Orden de despacho'.");
+          $("result").classList.add("d-none");
+          return;
+        }
+        if(s.tracking !== tracking){
+          showMsg("info","El tracking ingresado no coincide con la última orden creada aquí. Ingrésalo tal cual aparece (ej. ALSA-CHX-000123).");
+          $("result").classList.add("d-none");
+          return;
+        }
+        renderResult(s);
+      }
+
+      // Al enviar el formulario
+      $("form-lookup").addEventListener("submit",(e)=>{
+        e.preventDefault();
+        const tracking = $("trk").value.trim().toUpperCase();
+        if(!tracking){
+          showMsg("warning","Ingresa un código de seguimiento.");
+          return;
+        }
+        lookup(tracking);
+      });
+
+      // Botón actualizar: vuelve a leer de localStorage (por si US-09 avanzó estado)
+      $("btn-refresh").addEventListener("click", ()=>{
+        const tracking = $("trk").value.trim().toUpperCase();
+        if(!tracking){ showMsg("warning","Ingresa un código para actualizar."); return; }
+        const s = loadShipment();
+        if(!s || s.tracking !== tracking){
+          showMsg("info","No hay cambios para este tracking.");
+          return;
+        }
+        renderResult(s);
+        showMsg("success","Estado actualizado.");
+      });
+
+      // “Imprimir comprobante” → a boleta si existe, si no imprime esta página
+      $("btn-print").addEventListener("click",(e)=>{
+        e.preventDefault();
+        if(localStorage.getItem("alsahara.paymentId")){
+          location.href = "boleta.html";
+        }else{
+          window.print();
+        }
+      });
+
+      // Autolookup si viene por query
+      if(tFromQuery){ lookup(tFromQuery.toUpperCase()); }
+    })();
+  </script>
+</body>
+</html>
