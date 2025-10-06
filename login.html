@@ -1,56 +1,192 @@
 <!doctype html>
 <html lang="es">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Login · Al Sahara</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="styles.css" rel="stylesheet">
-  </head>
-  <body class="bg-light">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-      <div class="container">
-        <a class="navbar-brand fw-bold" href="index.html">Al Sahara</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div id="nav" class="collapse navbar-collapse">
-          <ul class="navbar-nav ms-auto gap-2">
-            <li class="nav-item"><a class="nav-link" href="catalogo.html">Catálogo</a></li>
-            <li class="nav-item"><a class="nav-link" href="login.html">Iniciar sesión</a></li>
-            <li class="nav-item"><a class="nav-link" href="reportes.html">Reportes</a></li>
-            <li class="nav-item"><a class="nav-link" href="admin_productos.html">Admin</a></li>
-          </ul>
-        </div>
-      </div>
-    </nav>
-    <main class="container my-4">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>US-02 · Inicio de sesión · Al Sahara</title>
+  <!-- Bootstrap (CDN) -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+</head>
+<body class="bg-light">
+  <!-- Navbar simple -->
+  <nav class="navbar navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="index.html">Al Sahara</a>
+    </div>
+  </nav>
 
-<h2 class="mb-3">US-02 · Inicio de sesión</h2>
-<div class="row g-4">
-  <div class="col-12 col-md-6">
-    <form class="card p-4 shadow-sm">
+  <main class="container py-5" style="max-width:560px">
+    <h1 class="h4 mb-3">Iniciar sesión</h1>
+
+    <!-- Mensajes -->
+    <div id="login-msg" class="alert d-none" role="alert"></div>
+
+    <!-- FORM LOGIN -->
+    <form id="form-login" class="card p-4 shadow-sm bg-white">
       <div class="mb-3">
-        <label class="form-label">Email</label>
-        <input class="form-control" placeholder="ana@example.com">
+        <label class="form-label" for="email">Email</label>
+        <input name="email" id="email" type="email" class="form-control" placeholder="ana@example.com" required />
       </div>
       <div class="mb-3">
-        <label class="form-label">Contraseña</label>
-        <input type="password" class="form-control">
+        <label class="form-label" for="password">Contraseña</label>
+        <input name="password" id="password" type="password" class="form-control" required minlength="6" />
+        <div class="form-text">Mínimo 6 caracteres.</div>
       </div>
-      <button class="btn btn-primary w-100">Ingresar</button>
-      <div class="form-text mt-2"><a href="recuperar.html">¿Olvidaste tu contraseña?</a></div>
+      <button class="btn btn-primary w-100">Entrar</button>
+      <div class="text-center mt-3">
+        <a href="recuperar.html" class="small">¿Olvidaste tu contraseña?</a>
+      </div>
     </form>
-  </div>
-  <div class="col-12 col-md-6">
-    <div class="alert alert-secondary">Esc2: Cuenta temporalmente bloqueada (5 intentos)</div>
-    <div class="alert alert-secondary">Esc3: Sesión expirada por inactividad</div>
-    <div class="small text-muted">APILogin(email, pass) → Response</div>
-  </div>
-</div>
+  </main>
 
-    </main>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  </body>
-  
+  <!-- Bootstrap JS (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- LÓGICA: validaciones + bloqueo por intentos + sesión con expiración -->
+  <script>
+    (function () {
+      const form = document.getElementById("form-login");
+      const msg  = document.getElementById("login-msg");
+
+      // ---------- Configuraciones ----------
+      const MAX_ATTEMPTS = 5;              // intentos antes de bloquear
+      const LOCK_MS      = 2 * 60 * 1000;  // 2 minutos de bloqueo
+      const SESSION_MIN  = 20;             // sesión expira en 20 minutos (simulado DoD)
+      const LS_KEYS = {
+        attempts: "alsahara.login.attempts",
+        lock:     "alsahara.login.lockUntil",
+        session:  "alsahara.session"       // { email, expiresAt }
+      };
+
+      // ---------- Utils ----------
+      function show(type, text) {
+        msg.className = "alert alert-" + type;
+        msg.textContent = text;
+        msg.classList.remove("d-none");
+      }
+      function hideMsg() { msg.classList.add("d-none"); }
+
+      function now() { return Date.now(); }
+
+      function getAttempts() {
+        return parseInt(localStorage.getItem(LS_KEYS.attempts) || "0", 10);
+      }
+      function setAttempts(n) {
+        localStorage.setItem(LS_KEYS.attempts, String(n));
+      }
+      function resetAttempts() {
+        setAttempts(0);
+      }
+
+      function getLockUntil() {
+        const v = localStorage.getItem(LS_KEYS.lock);
+        return v ? parseInt(v, 10) : 0;
+      }
+      function setLockUntil(ts) {
+        localStorage.setItem(LS_KEYS.lock, String(ts));
+      }
+      function clearLock() {
+        localStorage.removeItem(LS_KEYS.lock);
+      }
+      function isLocked() {
+        const until = getLockUntil();
+        return until && now() < until;
+      }
+      function lockRemainingSeconds() {
+        const until = getLockUntil();
+        return Math.max(0, Math.ceil((until - now()) / 1000));
+      }
+
+      function startSession(email) {
+        const expiresAt = now() + SESSION_MIN * 60 * 1000;
+        localStorage.setItem(LS_KEYS.session, JSON.stringify({ email, expiresAt }));
+      }
+
+      // (Opcional) Si alguna página quiere verificar expiración:
+      // const s = JSON.parse(localStorage.getItem(LS_KEYS.session) || "null");
+      // if (!s || Date.now() > s.expiresAt) => sesión expirada
+
+      // ---------- Check inicial de bloqueo ----------
+      function checkLockAndInform() {
+        if (isLocked()) {
+          const secs = lockRemainingSeconds();
+          show("danger", "Cuenta temporalmente bloqueada. Intenta nuevamente en " + secs + "s.");
+          return true;
+        }
+        // si ya pasó el lock, limpiamos bloqueo e intentos
+        if (getLockUntil() && !isLocked()) {
+          clearLock();
+          resetAttempts();
+        }
+        return false;
+      }
+
+      checkLockAndInform();
+
+      // ---------- Validaciones simples ----------
+      function validEmail(v) { return /\S+@\S+\.\S+/.test(v); }
+      function validPass(v)  { return v && v.length >= 6; }
+
+      // ---------- Manejo de submit ----------
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        hideMsg();
+
+        // Si está bloqueado, no procesar
+        if (checkLockAndInform()) return;
+
+        const email = form.email.value.trim();
+        const pass  = form.password.value.trim();
+
+        if (!validEmail(email)) { show("warning", "Email inválido."); return; }
+        if (!validPass(pass))   { show("warning", "La contraseña debe tener al menos 6 caracteres."); return; }
+
+        // Simulación de autenticación:
+        // Para el demo, consideramos que cualquier email válido + pass >=6 es correcto.
+        // Puedes poner una pauta (ej: sólo email que termine en @demo.cl pasa).
+        const authOK = true;
+
+        if (authOK) {
+          // Éxito → limpiar contadores y bloqueo
+          resetAttempts();
+          clearLock();
+
+          // Crear sesión con expiración
+          startSession(email);
+
+          show("success", "Inicio de sesión exitoso. Redirigiendo…");
+          setTimeout(function () {
+            window.location.href = "index.html";
+          }, 900);
+        } else {
+          // Fallo → aumentar intentos y bloquear si corresponde
+          const current = getAttempts() + 1;
+          setAttempts(current);
+
+          if (current >= MAX_ATTEMPTS) {
+            setLockUntil(now() + LOCK_MS);
+            show("danger", "Has superado los " + MAX_ATTEMPTS + " intentos. Cuenta bloqueada por 2 minutos.");
+          } else {
+            const restantes = MAX_ATTEMPTS - current;
+            show("warning", "Credenciales inválidas. Te quedan " + restantes + " intento(s) antes del bloqueo.");
+          }
+        }
+      });
+
+      // (Opcional) Actualiza el contador de segundos en pantalla si está bloqueado
+      if (isLocked()) {
+        const timer = setInterval(() => {
+          if (!isLocked()) {
+            clearInterval(timer);
+            hideMsg();
+            show("info", "Bloqueo finalizado. Puedes intentar nuevamente.");
+          } else {
+            const secs = lockRemainingSeconds();
+            show("danger", "Cuenta temporalmente bloqueada. Intenta nuevamente en " + secs + "s.");
+          }
+        }, 1000);
+      }
+    })();
+  </script>
+</body>
 </html>
