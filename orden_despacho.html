@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>US-09 · Orden de despacho · Al Sahara</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body{background:#f7f7f5}
+    .card{border-radius:14px}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
+    .step{display:flex;align-items:center;gap:.5rem}
+    .dot{width:.75rem;height:.75rem;border-radius:50%;background:#e5e7eb}
+    .step.done .dot{background:#198754}
+    .step.current .dot{background:#0d6efd}
+    @media print{ .no-print{display:none!important} body{background:#fff}.card{box-shadow:none;border:none} }
+  </style>
+</head>
+<body class="bg-light">
+  <nav class="navbar navbar-dark bg-dark no-print">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="index.html">Al Sahara</a>
+      <div class="d-flex gap-3">
+        <a class="nav-link text-white-50" href="catalogo.html">Catálogo</a>
+        <a class="nav-link text-white-50" href="boleta.html">Boleta</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-4" style="max-width:960px">
+    <h1 class="h4 mb-3">Orden de despacho</h1>
+
+    <div id="msg" class="alert d-none"></div>
+
+    <div class="row g-4">
+      <!-- Datos de pedido -->
+      <div class="col-12 col-lg-5">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h2 class="h6">Resumen de pedido</h2>
+            <div class="small text-muted">Si llegas desde pago/boleta, los datos se precargan.</div>
+            <dl class="row mt-2 mb-0">
+              <dt class="col-5">Order ID</dt><dd class="col-7 mono" id="sum-order">—</dd>
+              <dt class="col-5">Payment ID</dt><dd class="col-7 mono" id="sum-pay">—</dd>
+              <dt class="col-5">Total</dt><dd class="col-7 mono" id="sum-total">$0</dd>
+            </dl>
+            <hr>
+            <div class="small text-muted">Tracking</div>
+            <div id="sum-tracking" class="mono">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Formulario y estado -->
+      <div class="col-12 col-lg-7">
+        <div class="card shadow-sm mb-3">
+          <div class="card-body">
+            <h2 class="h6 mb-3">Datos de entrega</h2>
+            <form id="ship-form">
+              <div class="row g-3">
+                <div class="col-12">
+                  <label class="form-label">Nombre receptor</label>
+                  <input class="form-control" name="name" placeholder="Ana López" required>
+                </div>
+                <div class="col-12">
+                  <label class="form-label">Dirección</label>
+                  <input class="form-control" name="address" placeholder="Av. Siempre Viva 742" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Comuna</label>
+                  <input class="form-control" name="city" placeholder="Santiago" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Región</label>
+                  <input class="form-control" name="region" placeholder="RM" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Teléfono</label>
+                  <input class="form-control" name="phone" inputmode="tel" placeholder="+56 9 1234 5678" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Correo</label>
+                  <input class="form-control" name="email" type="email" placeholder="ana@example.com">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Courier</label>
+                  <select class="form-select" name="courier" required>
+                    <option value="" selected disabled>Selecciona…</option>
+                    <option>Chilexpress</option>
+                    <option>Starken</option>
+                    <option>Bluexpress</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Servicio</label>
+                  <select class="form-select" name="service" required>
+                    <option value="" selected disabled>Selecciona…</option>
+                    <option>Express (24-48h)</option>
+                    <option>Económico (3-5 días)</option>
+                  </select>
+                </div>
+              </div>
+              <button class="btn btn-primary mt-3 w-100">Generar orden de despacho</button>
+            </form>
+          </div>
+        </div>
+
+        <div id="state-card" class="card shadow-sm d-none">
+          <div class="card-body">
+            <h2 class="h6">Estado del envío</h2>
+            <div id="steps" class="vstack gap-2 my-2">
+              <div class="step" data-s="CREATED"><span class="dot"></span><span>Creada</span></div>
+              <div class="step" data-s="WAREHOUSE"><span class="dot"></span><span>En bodega</span></div>
+              <div class="step" data-s="ONROUTE"><span class="dot"></span><span>En ruta</span></div>
+              <div class="step" data-s="DELIVERED"><span class="dot"></span><span>Entregada</span></div>
+            </div>
+            <div class="mono small text-muted">Última actualización: <span id="updated-at">—</span></div>
+            <div class="d-flex flex-wrap gap-2 mt-3 no-print">
+              <button id="btn-next" class="btn btn-outline-primary">Avanzar estado</button>
+              <button id="btn-print" class="btn btn-outline-secondary">Imprimir PDF</button>
+              <button id="btn-reset" class="btn btn-outline-danger">Reiniciar</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    (function(){
+      const $ = (id)=>document.getElementById(id);
+      const msg = $("msg");
+      function showMsg(type, text){
+        msg.className = "alert alert-" + type;
+        msg.textContent = text;
+        msg.classList.remove("d-none");
+      }
+      function hideMsg(){ msg.classList.add("d-none"); }
+      function money(n){ return "$" + Number(n||0).toLocaleString(); }
+      function nowStr(){ return new Date().toLocaleString(); }
+
+      // Leer datos previos (si existen)
+      const orderId   = localStorage.getItem("alsahara.orderId") || ("ORD-" + Math.floor(Math.random()*1e7));
+      const paymentId = localStorage.getItem("alsahara.paymentId") || "PAY-SINPAGO";
+      const totalStr  = localStorage.getItem("alsahara.paymentTotal") || "0";
+
+      // Rellenar resumen
+      $("sum-order").textContent = orderId;
+      $("sum-pay").textContent   = paymentId;
+      $("sum-total").textContent = money(Number(totalStr) || 0);
+
+      // Estados posibles
+      const STATES = ["CREATED","WAREHOUSE","ONROUTE","DELIVERED"];
+
+      // Leer/guardar envío
+      function loadShipment(){
+        try { return JSON.parse(localStorage.getItem("alsahara.shipment") || "null"); }
+        catch(_){ return null; }
+      }
+      function saveShipment(s){
+        localStorage.setItem("alsahara.shipment", JSON.stringify(s));
+      }
+      function clearShipment(){
+        localStorage.removeItem("alsahara.shipment");
+      }
+
+      // Render de pasos
+      function renderSteps(current){
+        document.querySelectorAll(".step").forEach(el=>{
+          const code = el.getAttribute("data-s");
+          el.classList.toggle("done", STATES.indexOf(code) < STATES.indexOf(current));
+          el.classList.toggle("current", code === current);
+        });
+        $("updated-at").textContent = nowStr();
+      }
+
+      // Tracking
+      function makeTracking(courier){
+        const map = { "Chilexpress":"CHX", "Starken":"STK", "Bluexpress":"BLX" };
+        const pre = map[courier] || "CUR";
+        const num = String(Math.floor(Math.random()*1e6)).padStart(6,"0");
+        return `ALSA-${pre}-${num}`;
+      }
+
+      // Inicializar si ya hay envío guardado
+      let shipment = loadShipment();
+      if(shipment){
+        hideMsg();
+        $("sum-tracking").textContent = shipment.tracking;
+        $("state-card").classList.remove("d-none");
+        renderSteps(shipment.status);
+      }
+
+      // Generar orden
+      $("ship-form").addEventListener("submit", (e)=>{
+        e.preventDefault();
+        hideMsg();
+        const f = e.target;
+        const data = {
+          orderId,
+          paymentId,
+          total: Number(totalStr)||0,
+          receiver: f.name.value.trim(),
+          address: f.address.value.trim(),
+          city: f.city.value.trim(),
+          region: f.region.value.trim(),
+          phone: f.phone.value.trim(),
+          email: f.email.value.trim(),
+          courier: f.courier.value,
+          service: f.service.value,
+          status: "CREATED",
+          createdAt: Date.now(),
+        };
+
+        // Validaciones simples
+        if(!data.receiver || !data.address || !data.city || !data.region || !data.phone || !data.courier || !data.service){
+          showMsg("warning","Completa todos los campos obligatorios.");
+          return;
+        }
+
+        data.tracking = makeTracking(data.courier);
+        shipment = data;
+        saveShipment(shipment);
+
+        $("sum-tracking").textContent = shipment.tracking;
+        $("state-card").classList.remove("d-none");
+        renderSteps(shipment.status);
+        showMsg("success","Orden de despacho creada. Tracking: " + shipment.tracking);
+      });
+
+      // Avanzar estado
+      $("btn-next").addEventListener("click", ()=>{
+        if(!shipment){ showMsg("info","Primero genera la orden."); return; }
+        const idx = STATES.indexOf(shipment.status);
+        if(idx < STATES.length-1){
+          shipment.status = STATES[idx+1];
+          saveShipment(shipment);
+          renderSteps(shipment.status);
+        }else{
+          showMsg("success","El pedido ya fue entregado.");
+        }
+      });
+
+      // Imprimir/descargar PDF
+      $("btn-print").addEventListener("click", ()=> {
+        if(!shipment){ showMsg("info","No hay orden para imprimir."); return; }
+        window.print();
+      });
+
+      // Reiniciar flujo
+      $("btn-reset").addEventListener("click", ()=>{
+        clearShipment();
+        shipment = null;
+        $("sum-tracking").textContent = "—";
+        $("state-card").classList.add("d-none");
+        showMsg("secondary","Se reinició la orden de despacho.");
+      });
+    })();
+  </script>
+</body>
+</html>
