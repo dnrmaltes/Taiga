@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>US-03 · Recuperación de contraseña · Al Sahara</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+</head>
+<body class="bg-light">
+  <nav class="navbar navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="index.html">Al Sahara</a>
+    </div>
+  </nav>
+
+  <main class="container py-5" style="max-width:620px">
+    <h1 class="h4 mb-3">Recuperar contraseña</h1>
+
+    <!-- Mensajes -->
+    <div id="rec-msg" class="alert d-none" role="alert"></div>
+
+    <!-- FORM SOLICITUD DE TOKEN -->
+    <form id="form-request" class="card p-4 shadow-sm bg-white mb-4" novalidate>
+      <div class="mb-3">
+        <label class="form-label" for="email">Email registrado</label>
+        <input name="email" id="email" type="email" class="form-control" placeholder="ana@example.com" required />
+      </div>
+      <button class="btn btn-primary w-100">Solicitar enlace de recuperación</button>
+    </form>
+
+    <!-- FORM NUEVA CONTRASEÑA (aparece después del token) -->
+    <form id="form-reset" class="card p-4 shadow-sm bg-white d-none" novalidate>
+      <h2 class="h6 mb-3">Restablecer contraseña</h2>
+      <div class="mb-3">
+        <label class="form-label" for="token">Token</label>
+        <input name="token" id="token" type="text" class="form-control" required />
+        <div class="form-text">Código de 6 dígitos recibido por correo.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="newpass">Nueva contraseña</label>
+        <!-- Reglas en HTML para reforzar: 8+ con 1 mayúscula y 1 dígito -->
+        <input
+          name="newpass"
+          id="newpass"
+          type="password"
+          class="form-control"
+          required
+          minlength="8"
+          pattern="(?=.*[A-Z])(?=.*\\d).{8,}"
+          placeholder="8+ caracteres, 1 mayúscula y 1 dígito"
+        />
+        <div class="form-text">Debe tener 8+ caracteres, al menos 1 mayúscula y 1 dígito.</div>
+      </div>
+      <button class="btn btn-success w-100">Guardar nueva contraseña</button>
+    </form>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Lógica funcional con validación estricta -->
+  <script>
+    (function () {
+      const formReq   = document.getElementById("form-request");
+      const formReset = document.getElementById("form-reset");
+      const msg       = document.getElementById("rec-msg");
+
+      // Token simulado (se genera y expira)
+      const TOKEN_TTL_MS = 2 * 60 * 1000; // 2 minutos
+
+      function show(type, text) {
+        msg.className = "alert alert-" + type;
+        msg.textContent = text;
+        msg.classList.remove("d-none");
+      }
+
+      function validEmail(v){ return /\S+@\S+\.\S+/.test(v); }
+      function validStrongPass(v){
+        // 8+ con 1 mayúscula y 1 dígito
+        return /^(?=.*[A-Z])(?=.*\d).{8,}$/.test(v);
+      }
+
+      // Guardar token en localStorage
+      function saveToken(token, expiresAt){
+        localStorage.setItem("alsahara.token", token);
+        localStorage.setItem("alsahara.token.exp", String(expiresAt));
+      }
+      function readToken(){ return localStorage.getItem("alsahara.token"); }
+      function readTokenExp(){ return parseInt(localStorage.getItem("alsahara.token.exp") || "0", 10); }
+      function clearToken(){
+        localStorage.removeItem("alsahara.token");
+        localStorage.removeItem("alsahara.token.exp");
+      }
+
+      // Escenario 1: solicitud válida de recuperación
+      formReq.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const email = formReq.email.value.trim();
+        if (!validEmail(email)) {
+          show("warning", "Email inválido.");
+          return;
+        }
+        const token = Math.floor(100000 + Math.random() * 900000).toString(); // 6 dígitos
+        const exp   = Date.now() + TOKEN_TTL_MS;
+        saveToken(token, exp);
+        show("success", "Se envió un enlace con el token (simulado: " + token + ").");
+        // Mostrar formulario de reseteo
+        formReq.classList.add("d-none");
+        formReset.classList.remove("d-none");
+      });
+
+      // Escenario 2 y 3: validación de token + reseteo exitoso
+      formReset.addEventListener("submit", (e) => {
+        e.preventDefault();
+
+        const token   = formReset.token.value.trim();
+        const newpass = formReset.newpass.value.trim();
+
+        const saved = readToken();
+        const exp   = readTokenExp();
+        const now   = Date.now();
+
+        if (!saved) {
+          show("info", "Aún no has solicitado un token. Primero solicita el enlace de recuperación.");
+          formReset.classList.add("d-none");
+          formReq.classList.remove("d-none");
+          return;
+        }
+        if (now > exp) {
+          show("danger", "Token caducado. Solicita uno nuevo.");
+          formReset.classList.add("d-none");
+          formReq.classList.remove("d-none");
+          clearToken();
+          return;
+        }
+        if (token !== saved) {
+          show("warning", "Token incorrecto. Verifica el código mostrado.");
+          return;
+        }
+        // VALIDACIÓN ESTRICTA DE CONTRASEÑA 
+        if (!validStrongPass(newpass)) {
+          show("warning", "La nueva contraseña no cumple la política: 8+ caracteres, 1 mayúscula y 1 dígito.");
+          return;
+        }
+
+        // Reseteo exitoso
+        clearToken();
+        show("success", "Contraseña restablecida con éxito. Redirigiendo al login…");
+        setTimeout(() => { window.location.href = "login.html"; }, 1000);
+      });
+    })();
+  </script>
+</body>
+</html>
