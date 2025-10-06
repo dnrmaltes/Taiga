@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>US-13 · Admin · Clientes · Al Sahara</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    body{background:#f7f7f5}
+    .card{border-radius:14px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono","Courier New",monospace}
+    .chip{border-radius:999px;padding:.2rem .6rem;font-size:.75rem}
+    .chip.ok{background:#e7f8ee;color:#157347;border:1px solid #daf2e3}
+    .chip.off{background:#f8e7e7;color:#b02a37;border:1px solid #f1d4d6}
+    .empty{border:1px dashed #cbd5e1;border-radius:12px;background:#fff}
+  </style>
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-dark bg-dark">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="index.html">Al Sahara</a>
+    <div class="d-flex gap-3">
+      <a class="nav-link text-white-50" href="catalogo.html">Catálogo</a>
+      <a class="nav-link text-white-50" href="admin_productos.html">Productos</a>
+      <a class="nav-link text-white" href="admin_clientes.html">Clientes</a>
+      <a class="nav-link text-white-50" href="reportes.html">Reportes</a>
+    </div>
+  </div>
+</nav>
+
+<main class="container py-4">
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h1 class="h4 m-0 flex-grow-1">Administración · Clientes</h1>
+    <button id="btn-new" class="btn btn-primary">Nuevo cliente</button>
+    <button id="btn-export" class="btn btn-outline-secondary">Exportar JSON</button>
+    <label class="btn btn-outline-dark mb-0">
+      Importar JSON <input id="file-import" type="file" accept="application/json" hidden>
+    </label>
+  </div>
+
+  <div id="msg" class="alert d-none"></div>
+
+  <!-- Filtros -->
+  <div class="row g-3 mb-3">
+    <div class="col-sm-6 col-md-4">
+      <div class="input-group">
+        <span class="input-group-text">Buscar</span>
+        <input id="search" class="form-control" placeholder="Nombre, email, RUT…">
+      </div>
+    </div>
+    <div class="col-sm-6 col-md-4">
+      <select id="filter-status" class="form-select">
+        <option value="">Todos</option>
+        <option value="ACTIVE">Solo activos</option>
+        <option value="INACTIVE">Solo inactivos</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Tabla -->
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Cliente</th>
+            <th>Email</th>
+            <th>Teléfono</th>
+            <th>Estado</th>
+            <th class="text-end">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div id="empty" class="empty p-4 text-center d-none">
+      No hay clientes. Crea uno con <b>“Nuevo cliente”</b> o importa un JSON.
+    </div>
+  </div>
+</main>
+
+<!-- Modal Crear/Editar -->
+<div class="modal fade" id="modalForm" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form id="form" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalTitle">Nuevo cliente</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="id"/>
+        <div class="mb-3">
+          <label class="form-label">Nombre completo</label>
+          <input name="name" class="form-control" placeholder="Ana López" required>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Email</label>
+            <input name="email" type="email" class="form-control" placeholder="ana@example.com" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Teléfono</label>
+            <input name="phone" class="form-control" inputmode="tel" placeholder="+56 9 1234 5678">
+          </div>
+        </div>
+        <div class="row g-3 mt-0">
+          <div class="col-md-6">
+            <label class="form-label">RUT (opcional)</label>
+            <input name="rut" class="form-control" placeholder="12.345.678-9">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Estado</label>
+            <select name="status" class="form-select" required>
+              <option value="ACTIVE">Activo</option>
+              <option value="INACTIVE">Inactivo</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-0 mt-3">
+          <label class="form-label">Dirección</label>
+          <input name="address" class="form-control" placeholder="Av. Siempre Viva 742, Santiago">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal eliminar -->
+<div class="modal fade" id="modalDelete" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-body">
+        ¿Eliminar al cliente <b id="delName">—</b>?
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button id="btn-confirm-del" class="btn btn-danger">Eliminar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bootstrap (único include) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+(() => {
+  const $ = (id)=>document.getElementById(id);
+  const msg = $("msg");
+  function showMsg(type, text){
+    msg.className = "alert alert-" + type;
+    msg.textContent = text;
+    msg.classList.remove("d-none");
+    setTimeout(()=>msg.classList.add("d-none"), 1800);
+  }
+
+  const LS_KEY = "alsahara.clients";
+  const SEED = [
+    {id:1, name:"Ana López",    email:"ana@example.com",   phone:"+56 9 1234 1111", status:"ACTIVE",   rut:"12.345.678-9", address:"Providencia 123"},
+    {id:2, name:"Pedro García", email:"pedro@example.com", phone:"+56 9 1234 2222", status:"INACTIVE", rut:"9.876.543-2",  address:"Ñuñoa 456"},
+    {id:3, name:"Sofía Rivas",  email:"sofia@example.com", phone:"+56 9 1234 3333", status:"ACTIVE",   rut:"21.334.556-7", address:"Macul 789"}
+  ];
+
+  function load(){
+    try{ return JSON.parse(localStorage.getItem(LS_KEY) || "null") || SEED.slice(); }
+    catch(_){ return SEED.slice(); }
+  }
+  function save(list){ localStorage.setItem(LS_KEY, JSON.stringify(list)); }
+
+  let data = load();
+  const state = { q:"", status:"" };
+
+  function emailOk(v){ return /\S+@\S+\.\S+/.test(v||""); }
+
+  function applyFilters(){
+    const q = state.q.toLowerCase().trim();
+    return data.filter(c=>{
+      const okQ = !q || [c.name,c.email,c.phone,c.rut,c.address].some(v=>String(v||"").toLowerCase().includes(q));
+      const okS = !state.status || c.status===state.status;
+      return okQ && okS;
+    });
+  }
+
+  function render(){
+    const list = applyFilters();
+    const tb = $("tbody");
+    if(list.length===0){
+      tb.innerHTML = "";
+      $("empty").classList.remove("d-none");
+      return;
+    }
+    $("empty").classList.add("d-none");
+    tb.innerHTML = list.map(c=>`
+      <tr>
+        <td>
+          <div class="fw-semibold">${c.name}</div>
+          <div class="text-muted small mono">${c.rut||""}</div>
+        </td>
+        <td>${c.email||"—"}</td>
+        <td>${c.phone||"—"}</td>
+        <td>
+          <span class="chip ${c.status==='ACTIVE'?'ok':'off'}">${c.status==='ACTIVE'?'Activo':'Inactivo'}</span>
+        </td>
+        <td class="text-end">
+          <div class="btn-group">
+            <button class="btn btn-sm btn-outline-primary" data-edit="${c.id}">Editar</button>
+            <button class="btn btn-sm btn-outline-warning" data-toggle="${c.id}">${c.status==='ACTIVE'?'Inactivar':'Activar'}</button>
+            <button class="btn btn-sm btn-outline-danger" data-del="${c.id}">Eliminar</button>
+          </div>
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  // ---- Inicialización perezosa de modales (fix _initializeBackDrop)
+  let modalForm = null;
+  let modalDel  = null;
+  function ensureModals(){
+    if(!modalForm){
+      const el1 = $("modalForm");
+      if(el1) modalForm = new bootstrap.Modal(el1, { backdrop:true });
+    }
+    if(!modalDel){
+      const el2 = $("modalDelete");
+      if(el2) modalDel = new bootstrap.Modal(el2, { backdrop:true });
+    }
+  }
+
+  // Botón nuevo
+  $("btn-new").addEventListener("click", ()=>{
+    ensureModals();
+    const form = $("form");
+    const modalTitle = $("modalTitle");
+    form.reset();
+    form.id.value = "";
+    form.status.value = "ACTIVE";
+    modalTitle.textContent = "Nuevo cliente";
+    modalForm.show();
+  });
+
+  // Delegación: editar / toggle / eliminar
+  document.addEventListener("click",(e)=>{
+    const btnE = e.target.closest("[data-edit]");
+    const btnT = e.target.closest("[data-toggle]");
+    const btnD = e.target.closest("[data-del]");
+
+    if(btnE){
+      ensureModals();
+      const id = +btnE.getAttribute("data-edit");
+      const c = data.find(x=>x.id===id); if(!c) return;
+      const form = $("form");
+      const modalTitle = $("modalTitle");
+      form.id.value = c.id;
+      form.name.value = c.name||"";
+      form.email.value = c.email||"";
+      form.phone.value = c.phone||"";
+      form.rut.value = c.rut||"";
+      form.address.value = c.address||"";
+      form.status.value = c.status||"ACTIVE";
+      modalTitle.textContent = "Editar cliente";
+      modalForm.show();
+    }
+
+    if(btnT){
+      const id = +btnT.getAttribute("data-toggle");
+      const i = data.findIndex(x=>x.id===id); if(i<0) return;
+      data[i].status = data[i].status==="ACTIVE" ? "INACTIVE" : "ACTIVE";
+      save(data); render();
+    }
+
+    if(btnD){
+      ensureModals();
+      const id = +btnD.getAttribute("data-del");
+      const c = data.find(x=>x.id===id);
+      $("delName").textContent = c ? c.name : "—";
+      $("btn-confirm-del").dataset.id = id;
+      modalDel.show();
+    }
+  });
+
+  // Guardar (crear/editar)
+  $("form").addEventListener("submit",(e)=>{
+    e.preventDefault();
+    const form = e.target;
+    const id = form.id.value ? +form.id.value : null;
+    const name = form.name.value.trim();
+    const email = form.email.value.trim();
+    const phone = form.phone.value.trim();
+    const rut = form.rut.value.trim();
+    const address = form.address.value.trim();
+    const status = form.status.value;
+
+    if(!name || !emailOk(email)){
+      showMsg("warning","Nombre y email válido son obligatorios.");
+      return;
+    }
+
+    if(id){
+      const i = data.findIndex(x=>x.id===id);
+      if(i>=0) data[i] = {...data[i], name,email,phone,rut,address,status};
+      showMsg("success","Cliente actualizado.");
+    }else{
+      const newId = data.length ? Math.max(...data.map(x=>x.id))+1 : 1;
+      data.push({id:newId, name,email,phone,rut,address,status});
+      showMsg("success","Cliente creado.");
+    }
+    save(data);
+    render();
+    ensureModals(); modalForm.hide();
+  });
+
+  // Confirmar eliminar
+  $("btn-confirm-del").addEventListener("click", ()=>{
+    const id = +$("btn-confirm-del").dataset.id;
+    if(!id) return;
+    data = data.filter(x=>x.id!==id);
+    save(data);
+    render();
+    showMsg("secondary","Cliente eliminado.");
+    ensureModals(); modalDel.hide();
+  });
+
+  // Filtros
+  $("search").addEventListener("input",(e)=>{ state.q = e.target.value; render(); });
+  $("filter-status").addEventListener("change",(e)=>{ state.status = e.target.value; render(); });
+
+  // Export / Import
+  $("btn-export").addEventListener("click", ()=>{
+    const blob = new Blob([JSON.stringify(data,null,2)], {type:"application/json"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "clientes-alsahara.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  $("file-import").addEventListener("change",(e)=>{
+    const file = e.target.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{
+        const arr = JSON.parse(reader.result);
+        if(!Array.isArray(arr)) throw new Error("JSON inválido");
+        const sane = arr.map((c,i)=>({
+          id: Number(c.id) || (i+1),
+          name: String(c.name||"").trim() || `Cliente ${i+1}`,
+          email: String(c.email||"").trim(),
+          phone: String(c.phone||"").trim(),
+          rut: String(c.rut||"").trim(),
+          address: String(c.address||"").trim(),
+          status: c.status==="INACTIVE" ? "INACTIVE" : "ACTIVE"
+        })).filter(c=>emailOk(c.email));
+        data = sane;
+        save(data);
+        render();
+        showMsg("success","Clientes importados.");
+        e.target.value = "";
+      }catch(err){
+        showMsg("danger","No se pudo importar: "+err.message);
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  // Render cuando todo está cargado
+  window.addEventListener("load", render);
+})();
+</script>
+</body>
+</html>
