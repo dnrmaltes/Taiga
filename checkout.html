@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>US-07 · Pago externo · Al Sahara</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body{background:#f7f7f5}
+    .card{border-radius:14px}
+    .hint{font-size:.85rem;color:#6b7280}
+    .spinner{width:1.25rem;height:1.25rem;border:.2rem solid #e5e7eb;border-top-color:#0d6efd;border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body class="bg-light">
+  <!-- Navbar -->
+  <nav class="navbar navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="index.html">Al Sahara</a>
+      <div class="d-flex gap-3">
+        <a class="nav-link text-white-50" href="catalogo.html">Catálogo</a>
+        <a class="nav-link text-white-50" href="login.html">Iniciar sesión</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-4" style="max-width:840px">
+    <h1 class="h4 mb-3">Pago seguro</h1>
+
+    <div id="msg" class="alert d-none"></div>
+
+    <div class="row g-4">
+      <!-- Resumen de compra -->
+      <div class="col-12 col-lg-5">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h2 class="h6">Resumen</h2>
+            <div id="cart-list" class="small"></div>
+            <hr>
+            <div class="d-flex justify-content-between">
+              <span class="fw-semibold">Total</span>
+              <span id="cart-total" class="fw-bold">$0</span>
+            </div>
+            <p class="hint mt-2 mb-0">* Monto simulado para US-07.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Formulario de pago -->
+      <div class="col-12 col-lg-7">
+        <form id="pay-form" class="card shadow-sm">
+          <div class="card-body">
+            <h2 class="h6 mb-3">Datos de tarjeta</h2>
+
+            <div class="mb-3">
+              <label class="form-label" for="holder">Titular</label>
+              <input id="holder" name="holder" class="form-control" placeholder="Ana López" required />
+            </div>
+
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label" for="number">Número de tarjeta</label>
+                <input id="number" name="number" inputmode="numeric" class="form-control" placeholder="4111 1111 1111 1111" maxlength="19" required />
+                <div class="hint">Pruebas: <b>4111111111111111</b> (aprobado), <b>4000000000000002</b> (rechazado).</div>
+              </div>
+              <div class="col-6">
+                <label class="form-label" for="expiry">Expiración (MM/AA)</label>
+                <input id="expiry" name="expiry" class="form-control" placeholder="08/27" required />
+              </div>
+              <div class="col-6">
+                <label class="form-label" for="cvv">CVV</label>
+                <input id="cvv" name="cvv" inputmode="numeric" class="form-control" placeholder="123" maxlength="4" required />
+              </div>
+            </div>
+
+            <div class="form-check mt-3">
+              <input class="form-check-input" type="checkbox" id="terms" required>
+              <label class="form-check-label" for="terms">Acepto términos y condiciones</label>
+            </div>
+
+            <button id="btn-pay" class="btn btn-primary w-100 mt-4">
+              Pagar ahora
+            </button>
+
+            <p class="hint mt-3 mb-0">
+              * Simulación de pasarela externa: redirección, verificación y respuesta (éxito/rechazo/timeout).
+            </p>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal de pasarela (simulada) -->
+  <div class="modal fade" id="gatewayModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-body py-4 text-center">
+          <div class="spinner mx-auto mb-3"></div>
+          <p class="mb-0">Conectando con pasarela de pago…</p>
+          <div class="hint">No cierres esta ventana</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    (function(){
+      // --------- Mock de carrito / total ---------
+      // Si hay un total guardado previamente úsalo; si no, crea uno simulado.
+      const savedTotal = Number(localStorage.getItem("alsahara.cart.total") || 18990);
+      const sampleItems = [
+        {name:"Falafel x2", price:5990},
+        {name:"Shawarma", price:7990},
+        {name:"Baklava", price:4990},
+      ];
+      document.getElementById("cart-total").textContent = "$" + savedTotal.toLocaleString();
+      document.getElementById("cart-list").innerHTML = sampleItems.map(i=>`
+        <div class="d-flex justify-content-between"><span>${i.name}</span><span>$${i.price.toLocaleString()}</span></div>
+      `).join("");
+
+      // --------- Helpers ---------
+      const msg = document.getElementById("msg");
+      function show(type, text){
+        msg.className = "alert alert-" + type;
+        msg.textContent = text;
+        msg.classList.remove("d-none");
+      }
+      function clearMsg(){ msg.classList.add("d-none"); }
+
+      function onlyDigits(s){ return (s||"").replace(/\D/g,""); }
+      function luhnOk(num){
+        // Valida Luhn simple
+        num = onlyDigits(num);
+        let sum=0, dbl=false;
+        for(let i=num.length-1;i>=0;i--){
+          let d = +num[i];
+          if(dbl){ d*=2; if(d>9) d-=9; }
+          sum += d; dbl=!dbl;
+        }
+        return (sum%10)===0;
+      }
+      function validExpiry(v){
+        // MM/AA futuro
+        const m = /^(\d{2})\/(\d{2})$/.exec(v||"");
+        if(!m) return false;
+        const mm = +m[1], yy = +m[2];
+        if(mm<1 || mm>12) return false;
+        const now = new Date();
+        const year = 2000 + yy;
+        const exp = new Date(year, mm); // primer día del mes siguiente
+        return exp > now;
+      }
+      function validCVV(v){ return /^\d{3,4}$/.test(v||""); }
+
+      // --------- Simulación de pasarela ---------
+      function openGatewayAndResolve(card){
+        return new Promise((resolve)=>{
+          const modal = new bootstrap.Modal(document.getElementById('gatewayModal'), {backdrop:'static', keyboard:false});
+          modal.show();
+
+          // Simulamos red/tiempos de la pasarela
+          setTimeout(()=>{
+            const digits = onlyDigits(card);
+            if(digits === "4111111111111111"){
+              resolve({status:"approved", auth:"AP-"+Math.floor(Math.random()*1e6)});
+            }else if(digits === "4000000000000002"){
+              resolve({status:"declined", reason:"Fondos insuficientes"});
+            }else{
+              resolve({status:"timeout"});
+            }
+            modal.hide();
+          }, 1800);
+        });
+      }
+
+      // --------- Submit pago ---------
+      const form = document.getElementById("pay-form");
+      const btn  = document.getElementById("btn-pay");
+      form.addEventListener("submit", async (e)=>{
+        e.preventDefault();
+        clearMsg();
+
+        const holder = form.holder.value.trim();
+        const number = form.number.value.trim();
+        const expiry = form.expiry.value.trim();
+        const cvv    = form.cvv.value.trim();
+        const terms  = form.terms.checked;
+
+        // Validaciones front
+        if(!holder){ show("warning","Debes ingresar el titular de la tarjeta."); return; }
+        if(!luhnOk(number)){ show("warning","Número de tarjeta inválido."); return; }
+        if(!validExpiry(expiry)){ show("warning","Fecha de expiración inválida o vencida."); return; }
+        if(!validCVV(cvv)){ show("warning","CVV inválido."); return; }
+        if(!terms){ show("warning","Debes aceptar los términos y condiciones."); return; }
+
+        btn.disabled = true;
+
+        // “Redirección” a pasarela (simulada)
+        const result = await openGatewayAndResolve(number);
+
+        if(result.status === "approved"){
+          // Escenario 1: aprobado → guardar datos y redirigir a boleta
+          const paymentId = "PAY-" + Math.floor(Math.random()*1e8);
+          const orderId   = "ORD-" + Math.floor(Math.random()*1e8);
+          localStorage.setItem("alsahara.paymentId", paymentId);
+          localStorage.setItem("alsahara.orderId", orderId);
+          localStorage.setItem("alsahara.paymentTotal", String(savedTotal));
+          show("success","Pago aprobado. Redirigiendo a boleta…");
+          setTimeout(()=>location.href="boleta.html", 900);
+        }else if(result.status === "declined"){
+          // Escenario 2: rechazado
+          show("danger","Pago rechazado por la pasarela: " + (result.reason || "motivo no especificado"));
+          btn.disabled = false;
+        }else{
+          // Escenario 3: timeout/error
+          show("secondary","No se pudo contactar a la pasarela (timeout). Intenta nuevamente.");
+          btn.disabled = false;
+        }
+      });
+
+      // Formateo amigable del número mientras escribe
+      const numberInput = document.getElementById("number");
+      numberInput.addEventListener("input", ()=>{
+        let v = onlyDigits(numberInput.value).slice(0,19);
+        v = v.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+        numberInput.value = v;
+      });
+    })();
+  </script>
+</body>
+</html>
