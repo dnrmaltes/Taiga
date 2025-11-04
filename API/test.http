@@ -1,0 +1,48 @@
+### Healthcheck
+GET http://localhost:3000/
+
+### Catálogo - lista
+GET http://localhost:3000/api/catalogo
+
+### Catálogo - búsqueda
+GET http://localhost:3000/api/catalogo/search?q=hum&categoria=Platos&page=1&perPage=9
+
+### Auth - registro
+POST http://localhost:3000/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "ana@example.com",
+  "password": "abc123"
+}
+
+### Auth - login
+POST http://localhost:3000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "ana@example.com",
+  "password": "abc123"
+}
+
+### Pedido - checkout
+POST http://localhost:3000/api/pedidos/checkout
+Content-Type: application/json
+
+{
+  "productos": [
+    { "nombre": "Hummus", "precio": 4000 },
+    { "nombre": "Falafel", "precio": 3500 }
+  ]
+}
+
+### Boleta - generar
+POST http://localhost:3000/api/boletas
+Content-Type: application/json
+
+{
+  "ordenId": 1
+}
+
+### Reportes - ventas
+GET http://localhost:3000/api/reportes/ventas
